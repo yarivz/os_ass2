@@ -11,7 +11,7 @@ struct {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
-
+  
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -145,7 +145,7 @@ fork(void)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
-
+  
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -187,6 +187,9 @@ exit(void)
 
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
+  
+  while(proc->threadnum > 0)
+    sleep(proc,&ptable.lock);
 
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -473,4 +476,125 @@ procdump(void)
   }
 }
 
+int
+thread_create(void*(*start_func)(), void* stack, uint stack_size)
+{
+  int i, tid;
+  struct proc *np;
 
+  // Allocate process.
+  
+  acquire(&ptable.lock);
+  for(np = ptable.proc; np < &ptable.proc[NPROC]; np++)
+    if(np->state == UNUSED)
+      goto found;
+  release(&ptable.lock);
+  return -1;
+
+found:
+  np->state = EMBRYO;
+  np->pid = proc->pid;
+  proc->threadnum++;
+  release(&ptable.lock);
+  
+  // Copy process state from p.
+  np->pgdir = proc->pgdir;
+  np->kstack = stack;
+  np->sz = stack_size;
+  np->parent = proc;
+  *np->tf = *proc->tf;
+  np->isthread = 1;
+  np->isjoined = 0;
+  np->thread_id = ++(proc->thread_id);
+  np->threadnum = 0;
+  // Clear %eax so that fork returns 0 in the child.
+  np->tf->eax = 0;
+  np->tf->esp = (uint)stack+stack_size;
+  np->tf->eip = (uint)start_func;
+  
+  for(i = 0; i < NOFILE; i++)
+    if(proc->ofile[i])
+      np->ofile[i] = proc->ofile[i];
+  np->cwd = proc->cwd;
+  tid = np->thread_id;
+  np->state = RUNNABLE;
+  safestrcpy(np->name, proc->name, sizeof(proc->name));
+  return tid;
+}
+
+int 
+thread_getId()
+{
+  if(proc && proc->isthread)
+    return proc->thread_id;
+  else
+    return -1; 
+}
+
+int 
+thread_getProcId()
+{
+  if(proc)
+    return proc->pid;  
+  else
+    return -1;
+}
+
+int 
+thread_join(int thread_id, void** ret_val)
+{
+  struct proc *t = 0;
+  int found = 0;
+
+  acquire(&ptable.lock);
+  for(t = ptable.proc; t < &ptable.proc[NPROC]; t++)
+  {
+    if(t->isthread)
+    {
+      if(t->thread_id == thread_id)
+      {
+	if(t->isjoined)
+	  return -2;
+	if(t->state == ZOMBIE){
+	  t->state = UNUSED;
+	  ret_val =  (void**)t->tf->eax;
+	  return 0;
+	}      
+	t->isjoined = 1;
+	found = 1;
+	break;
+      }
+    }
+  }
+
+  if(!found)
+  {
+    release(&ptable.lock);
+    return -1;
+  }
+
+  sleep(proc,&ptable.lock);
+  return 0;
+}
+
+void 
+thread_exit(void * ret_val)
+{
+    acquire(&ptable.lock);
+    
+    while(proc->threadnum > 0)
+      sleep(proc,&ptable.lock);
+    if(proc->isthread)
+    {
+      proc->parent->threadnum--;
+      ret_val =  (void*)proc->tf->eax;
+      wakeup1(proc->parent);
+      proc->state = ZOMBIE;
+      sched();
+    }
+    else
+    {
+      release(&ptable.lock);
+      exit();
+    }
+}

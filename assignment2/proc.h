@@ -49,7 +49,7 @@ struct context {
   uint eip;
 };
 
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, BLOCKED};
 
 typedef void (*sighandler_t)(void);
 
@@ -68,6 +68,10 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  uint isthread;		// Indicates if this proc is a kernel thread
+  uint isjoined;		// Lock that indicates if this kernel thread has been joined by another
+  volatile int thread_id;	// Kernel thread id - in main thread this is the child thread count
+  int threadnum;		// Number of threads spawned by this thread
 };
 
 // Process memory is laid out contiguously, low addresses first:
