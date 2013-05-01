@@ -116,6 +116,11 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+int 		thread_create(void*(*start_func)(), void* stack, uint stack_size);
+int 		thread_getId(void);
+int 		thread_getProcId(void);
+int 		thread_join(int thread_id, void** ret_val);
+void 		thread_exit(void * ret_val);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

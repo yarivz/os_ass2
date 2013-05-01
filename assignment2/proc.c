@@ -11,7 +11,12 @@ struct {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
-  
+
+struct {
+  struct b_semaphore binary_semaphores[128];
+  struct spinlock lock;
+} semtable;
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -153,7 +158,10 @@ fork(void)
     if(proc->ofile[i])
       np->ofile[i] = filedup(proc->ofile[i]);
   np->cwd = idup(proc->cwd);
- 
+  np->thread_id = 0;
+  np->threadnum = 0;
+  np->isthread = 0;
+  np->isjoined = 0;
   pid = np->pid;
   np->state = RUNNABLE;
   safestrcpy(np->name, proc->name, sizeof(proc->name));
@@ -185,11 +193,40 @@ exit(void)
 
   acquire(&ptable.lock);
 
+  for(;;){
+    // Scan through table looking for zombie children.
+    int havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != proc)
+        continue;
+      havekids = 1;
+      if(p->isthread ==1 && p->state == TERMINATED){
+        // Found one.
+        p->kstack = 0;
+        p->state = UNUSED;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+	p->threadnum = 0;
+	p->thread_id = 0;
+	p->isjoined = 0;
+	p->isthread = 0;
+	proc->threadnum--;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(proc->threadnum > 0)
+      sleep(proc,&ptable.lock);
+    else
+      break;
+  }
+  
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
   
-  while(proc->threadnum > 0)
-    sleep(proc,&ptable.lock);
+  
 
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -481,7 +518,6 @@ thread_create(void*(*start_func)(), void* stack, uint stack_size)
 {
   int i, tid;
   struct proc *np;
-
   // Allocate process.
   
   acquire(&ptable.lock);
@@ -549,21 +585,17 @@ thread_join(int thread_id, void** ret_val)
   acquire(&ptable.lock);
   for(t = ptable.proc; t < &ptable.proc[NPROC]; t++)
   {
-    if(t->isthread)
+    if(t->pid == proc->pid && t->isthread && t->thread_id == thread_id)
     {
-      if(t->thread_id == thread_id)
-      {
-	if(t->isjoined)
-	  return -2;
-	if(t->state == ZOMBIE){
-	  t->state = UNUSED;
-	  ret_val =  (void**)t->tf->eax;
-	  return 0;
-	}      
-	t->isjoined = 1;
-	found = 1;
-	break;
-      }
+      if(t->isjoined)
+	return -2;
+      if(t->state == TERMINATED){
+	ret_val =  (void**)t->tf->eax;
+	return 0;
+      }      
+      t->isjoined = 1;
+      found = 1;
+      break;
     }
   }
 
@@ -580,21 +612,105 @@ thread_join(int thread_id, void** ret_val)
 void 
 thread_exit(void * ret_val)
 {
-    acquire(&ptable.lock);
+  acquire(&ptable.lock);
     
-    while(proc->threadnum > 0)
+  for(;;){
+    // Scan through table looking for zombie children.
+    int havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != proc)
+        continue;
+      havekids = 1;
+      if(p->isthread ==1 && p->state == TERMINATED){
+        // Found one.
+        p->kstack = 0;
+        p->state = UNUSED;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+	p->threadnum = 0;
+	p->thread_id = 0;
+	p->isjoined = 0;
+	p->isthread = 0;
+	proc->threadnum--;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(proc->threadnum > 0)
       sleep(proc,&ptable.lock);
-    if(proc->isthread)
-    {
-      proc->parent->threadnum--;
-      ret_val =  (void*)proc->tf->eax;
-      wakeup1(proc->parent);
-      proc->state = ZOMBIE;
-      sched();
-    }
     else
-    {
-      release(&ptable.lock);
-      exit();
-    }
+      break;
+  }
+  if(proc->isthread)
+  {
+    ret_val =  (void*)proc->tf->eax;
+    wakeup1(proc->parent);
+    proc->state = TERMINATED;
+    sched();
+  }
+  else
+  {
+    release(&ptable.lock);
+    exit();
+  }
 }
+
+int
+binary_semaphore_create(int initial_value)
+{
+  struct b_semaphore* sem;
+  int i = 0;
+  acquire(&semtable.lock);
+  for(;i<128;i++)
+  {
+    sem = semtable.binary_semaphores[i];
+    if(sem->taken)
+      continue;
+    sem->taken = 1;
+    sem->value = initial_value;
+    return i;
+  }
+  release(&semtable.lock);
+  return -1;
+}
+
+int 
+binary_semaphore_down(int binary_semaphore_ID)
+{
+  for(;;)
+  {
+    acquire(&semtable.lock);
+    struct b_semaphore* sem = semtable.binary_semaphores[binary_semaphore_ID];
+    if(!sem->taken)
+    {
+      sem->taken = 1;
+      release(&semtable.lock);
+      return 0;
+    }
+    proc->waiting_for_semaphore = binary_semaphore_ID;
+    proc->sem_queue_pos = ++(sem->waiting);
+    sleep(sem,&semtable.lock);
+  }
+}
+
+int
+binary_semaphore_up(int binary_semaphore_ID)
+{
+  acquire(&semtable.lock);
+  struct b_semaphore* sem = semtable.binary_semaphores[binary_semaphore_ID];
+  acquire(&ptable.lock);
+
+  
+  
+}
+
+
+
+
+
+
+
+
+

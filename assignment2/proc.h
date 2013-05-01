@@ -49,7 +49,7 @@ struct context {
   uint eip;
 };
 
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, BLOCKED};
+enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, TERMINATED, BLOCKED};
 
 typedef void (*sighandler_t)(void);
 
@@ -72,6 +72,14 @@ struct proc {
   uint isjoined;		// Lock that indicates if this kernel thread has been joined by another
   volatile int thread_id;	// Kernel thread id - in main thread this is the child thread count
   int threadnum;		// Number of threads spawned by this thread
+  int waiting_for_semaphore;	// ID of binary semaphore the process is waiting for, or -1 if not waiting
+  int sem_queue_pos;		// Semaphore queue position
+};
+
+struct b_semaphore {
+  int value;
+  int taken;
+  int waiting;
 };
 
 // Process memory is laid out contiguously, low addresses first:
