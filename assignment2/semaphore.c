@@ -1,25 +1,40 @@
 #include "semaphore.h"
 
-struct semaphore* semaphore_create(int initial_semaphore_value)
+struct semaphore* 
+semaphore_create(int initial_semaphore_value)
 {
-  struct semaphore* s = 0;
-  binary_semaphore_create(0);
+  struct semaphore* s = malloc(sizeof(struct semaphore));
+  if((s->s1 = binary_semaphore_create(1)) != -1)
+  {
+    if((s->s2 = binary_semaphore_create(1)) != -1)
+    {
+      s->value = initial_semaphore_value;
+      return s;
+    }
+  }
+  free(s);
+  s = 0;
   return s;
 }
-void semaphore_down(struct semaphore* sem )
+
+void 
+semaphore_down(struct semaphore* sem )
 {
-  /*down(S2);
-down(S1);
-S.value--;
-if (S.value>0) then
-  up(S2);
-up(S1);*/
+ binary_semaphore_down(sem->s2);
+ binary_semaphore_down(sem->s1);
+ sem->value--;
+ if(sem->value>0)
+  binary_semaphore_up(sem->s2);
+ binary_semaphore_up(sem->s1);
 }
-void semaphore_up(struct semaphore* sem )
+
+void 
+semaphore_up(struct semaphore* sem )
 {
-  /*down(S1);
-S.value++;
-if(S.value == 1) {
-	 up(S2); }
-up(S1);*/
+  binary_semaphore_down(sem->s1);
+  sem->value++;
+  if(sem->value == 1)
+    binary_semaphore_up(sem->s2);
+  binary_semaphore_up(sem->s1);
 }
+

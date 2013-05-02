@@ -4,11 +4,11 @@
 #include "proc.h"
 #include "user.h"
 
-struct {
+struct semaphore{
   int value;
-  struct b_semaphore s1;
-  struct b_semaphore s2;
-} semaphore;
+  int s1;
+  int s2;
+};
 
 struct semaphore* semaphore_create(int initial_semaphore_value);
 void semaphore_down(struct semaphore* sem );

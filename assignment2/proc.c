@@ -192,20 +192,17 @@ exit(void)
   proc->cwd = 0;
 
   acquire(&ptable.lock);
-
   for(;;){
     // Scan through table looking for zombie children.
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != proc)
+      if(p->pid != proc->pid)
         continue;
-      if(p->isthread ==1 && p->state == TERMINATED){
+      if(p->isthread ==1 /*&& p->state == TERMINATED*/){
         // Found one.
-        p->kstack = 0;
         p->state = UNUSED;
+	p->chan = 0;
         p->pid = 0;
         p->parent = 0;
-        p->name[0] = 0;
-        p->killed = 0;
 	p->threadnum = 0;
 	p->thread_id = 0;
 	p->isjoined = 0;
@@ -220,7 +217,6 @@ exit(void)
     else
       break;
   }
-  
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
   
@@ -530,7 +526,6 @@ found:
   np->pid = proc->pid;
   proc->threadnum++;
   release(&ptable.lock);
-  
   // Copy process state from p.
   np->pgdir = proc->pgdir;
   np->kstack = stack;
@@ -634,12 +629,15 @@ thread_exit(void * ret_val)
       }
     }
 
+      
+
     // No point waiting if we don't have any children.
     if(proc->threadnum > 0)
       sleep(proc,&ptable.lock);
     else
       break;
   }
+
   if(proc->isthread)
   {
     ret_val =  (void*)proc->tf->eax;
@@ -730,3 +728,4 @@ binary_semaphore_up(int binary_semaphore_ID)
   else
     return -1;
 }
+
