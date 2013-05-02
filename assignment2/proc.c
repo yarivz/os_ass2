@@ -195,11 +195,9 @@ exit(void)
 
   for(;;){
     // Scan through table looking for zombie children.
-    int havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->parent != proc)
         continue;
-      havekids = 1;
       if(p->isthread ==1 && p->state == TERMINATED){
         // Found one.
         p->kstack = 0;
@@ -612,15 +610,14 @@ thread_join(int thread_id, void** ret_val)
 void 
 thread_exit(void * ret_val)
 {
+  struct proc* p;
   acquire(&ptable.lock);
     
   for(;;){
     // Scan through table looking for zombie children.
-    int havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->parent != proc)
         continue;
-      havekids = 1;
       if(p->isthread ==1 && p->state == TERMINATED){
         // Found one.
         p->kstack = 0;
@@ -665,7 +662,7 @@ binary_semaphore_create(int initial_value)
   acquire(&semtable.lock);
   for(;i<128;i++)
   {
-    sem = semtable.binary_semaphores[i];
+    sem = &semtable.binary_semaphores[i];
     if(sem->taken)
       continue;
     sem->taken = 1;
@@ -679,38 +676,57 @@ binary_semaphore_create(int initial_value)
 int 
 binary_semaphore_down(int binary_semaphore_ID)
 {
+  acquire(&semtable.lock);
   for(;;)
   {
-    acquire(&semtable.lock);
-    struct b_semaphore* sem = semtable.binary_semaphores[binary_semaphore_ID];
+    struct b_semaphore* sem = &semtable.binary_semaphores[binary_semaphore_ID];
     if(!sem->taken)
     {
-      sem->taken = 1;
-      release(&semtable.lock);
-      return 0;
+      if(!sem->value && !proc->sem_queue_pos)
+      {
+	sem->value = 1;
+	proc->waiting_for_semaphore = -1;
+	release(&semtable.lock);
+	return 0;
+      }
+      else
+      {
+	proc->waiting_for_semaphore = binary_semaphore_ID;
+	proc->sem_queue_pos = ++(sem->waiting);
+	sleep(sem,&semtable.lock);
+      }
     }
-    proc->waiting_for_semaphore = binary_semaphore_ID;
-    proc->sem_queue_pos = ++(sem->waiting);
-    sleep(sem,&semtable.lock);
+    else
+    {
+      release(&semtable.lock);
+      return -1;
+    }
   }
 }
 
 int
 binary_semaphore_up(int binary_semaphore_ID)
 {
-  acquire(&semtable.lock);
-  struct b_semaphore* sem = semtable.binary_semaphores[binary_semaphore_ID];
-  acquire(&ptable.lock);
+  struct b_semaphore* sem = &semtable.binary_semaphores[binary_semaphore_ID];
+  if(!sem->taken)
+  {     
+     struct proc *p;
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if(p->waiting_for_semaphore == binary_semaphore_ID)
+        p->sem_queue_pos--;
+    }
+    
+    sem->value = 1;
+    if(sem->waiting>0)
+      sem->waiting--;
+    wakeup1(sem);
+    release(&ptable.lock);
 
-  
-  
+    return 0;
+  }
+  else
+    return -1;
 }
-
-
-
-
-
-
-
-
-

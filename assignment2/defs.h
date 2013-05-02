@@ -121,6 +121,9 @@ int 		thread_getId(void);
 int 		thread_getProcId(void);
 int 		thread_join(int thread_id, void** ret_val);
 void 		thread_exit(void * ret_val);
+int		binary_semaphore_create(int initial_value);
+int 		binary_semaphore_down(int binary_semaphore_ID);
+int		binary_semaphore_up(int binary_semaphore_ID);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

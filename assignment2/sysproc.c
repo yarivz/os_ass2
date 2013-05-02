@@ -130,10 +130,34 @@ sys_thread_join(void)
   return thread_join((int) thread_id, (void**) ret_val);
 }
 
-int
+void
 sys_thread_exit(void)
 {
   char* ret_val;
   argptr(0, &ret_val , sizeof(ret_val));
   return thread_exit((void*) ret_val);
+}
+
+int
+sys_binary_semaphore_create(void)
+{
+  char* initial_value;
+  argptr(0,&initial_value,sizeof(initial_value));
+  return binary_semaphore_create((int) initial_value);
+}
+
+int
+sys_binary_semaphore_down(void)
+{
+  char* binary_semaphore_ID;
+  argptr(0,&binary_semaphore_ID,sizeof(binary_semaphore_ID));
+  return binary_semaphore_down((int) binary_semaphore_ID);
+}
+
+int
+sys_binary_semaphore_up(void)
+{
+  char* binary_semaphore_ID;
+  argptr(0,&binary_semaphore_ID,sizeof(binary_semaphore_ID));
+  return binary_semaphore_up((int) binary_semaphore_ID);
 }
