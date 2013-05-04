@@ -74,6 +74,7 @@ struct proc {
   int threadnum;		// Number of threads spawned by this thread
   int waiting_for_semaphore;	// ID of binary semaphore the process is waiting for, or -1 if not waiting
   int sem_queue_pos;		// Semaphore queue position
+  void* ret_val;		// thread return value
 };
 
 struct b_semaphore {

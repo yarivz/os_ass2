@@ -4,7 +4,7 @@
 
 int lock;
 
-void *print()
+void *print(void)
 {
   for(;;)
   {
@@ -27,8 +27,7 @@ threadTest(char* n)
   {
     uint stack_size = 1024;
     void* stack = malloc(stack_size);
-    value = thread_create(print,stack,stack_size);
-    printf(1,"%d\n",value);
+    value = thread_create((void*)print,stack,stack_size);
     if(value == -1)
       printf(1,"Failed to create thread number %d\n",num);
   }
@@ -39,8 +38,7 @@ threadTest(char* n)
 int
 main(int argc, char** argv)
 {
-  void * ret_val = 0;
   threadTest(argv[1]);
-  thread_exit(ret_val);
+  thread_exit(0);
   return 0;
 }
