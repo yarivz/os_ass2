@@ -74,7 +74,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
+  p->threadnum = 1;
   return p;
 }
 
@@ -159,7 +159,6 @@ fork(void)
       np->ofile[i] = filedup(proc->ofile[i]);
   np->cwd = idup(proc->cwd);
   np->thread_id = 0;
-  np->threadnum = 0;
   np->isthread = 0;
   np->isjoined = 0;
   pid = np->pid;
@@ -192,39 +191,18 @@ exit(void)
   proc->cwd = 0;
 
   acquire(&ptable.lock);
-  for(;;){
-    // Scan through table looking for zombie children.
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->pid != proc->pid)
-        continue;
-      if(p->isthread ==1 /*&& p->state == TERMINATED*/){
-        // Found one.
-        p->state = UNUSED;
-	p->chan = 0;
-        p->pid = 0;
-        p->parent = 0;
-	p->threadnum = 0;
-	p->thread_id = 0;
-	p->isjoined = 0;
-	p->isthread = 0;
-	proc->threadnum--;
-      }
-    }
-
-    // No point waiting if we don't have any children.
-    if(proc->threadnum > 0)
-      sleep(proc,&ptable.lock);
-    else
-      break;
-  }
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
   
-  
-
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->parent == proc){
+    if(p->pid == proc->pid && p->isthread ==1){
+        // Found one.
+        p->state = ZOMBIE;
+        p->pid = 0;
+	p->thread_id = 0;
+      }
+    else if(p->parent == proc && p->isthread !=1){
       p->parent = initproc;
       if(p->state == ZOMBIE)
         wakeup1(initproc);
@@ -512,38 +490,28 @@ thread_create(void*(*start_func)(), void* stack, uint stack_size)
 {
   int i, tid;
   struct proc *np;
-  // Allocate process.
-  
-  acquire(&ptable.lock);
-  for(np = ptable.proc; np < &ptable.proc[NPROC]; np++)
-    if(np->state == UNUSED)
-      goto found;
-  release(&ptable.lock);
-  return -1;
 
-found:
-  np->state = EMBRYO;
+  // Allocate process.
+  if((np = allocproc()) == 0)
+    return -1;
+
   np->pid = proc->pid;
-  proc->threadnum++;
-  release(&ptable.lock);
   // Copy process state from p.
   np->pgdir = proc->pgdir;
-  np->kstack = stack;
-  np->sz = stack_size;
-  np->parent = proc;
-  *np->tf = *proc->tf;
+  np->sz = proc->sz;
+  if(proc->isthread)
+    np->parent = proc->parent;
+  else
+    np->parent = proc;
   np->isthread = 1;
   np->isjoined = 0;
-  np->thread_id = ++(proc->thread_id);
-  np->threadnum = 0;
+  np->thread_id = ++(np->parent->thread_id);
+  *np->tf = *proc->tf;
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
   np->tf->esp = (uint)stack+stack_size;
   np->tf->eip = (uint)start_func;
-  
-  for(i = 0; i < NOFILE; i++)
-    if(proc->ofile[i])
-      np->ofile[i] = proc->ofile[i];
+  np->ofile = proc->ofile;
   np->cwd = proc->cwd;
   tid = np->thread_id;
   np->state = RUNNABLE;
@@ -582,7 +550,7 @@ thread_join(int thread_id, void** ret_val)
     {
       if(t->isjoined)
 	return -2;
-      if(t->state == TERMINATED){
+      if(t->state == ZOMBIE){
 	ret_val =  (void**)t->tf->eax;
 	return 0;
       }      
@@ -598,58 +566,24 @@ thread_join(int thread_id, void** ret_val)
     return -1;
   }
 
-  sleep(proc,&ptable.lock);
+  sleep(t,&ptable.lock);
   return 0;
 }
 
 void 
 thread_exit(void * ret_val)
 {
-  struct proc* p;
-  acquire(&ptable.lock);
-    
-  for(;;){
-    // Scan through table looking for zombie children.
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != proc)
-        continue;
-      if(p->isthread ==1 && p->state == TERMINATED){
-        // Found one.
-        p->kstack = 0;
-        p->state = UNUSED;
-        p->pid = 0;
-        p->parent = 0;
-        p->name[0] = 0;
-        p->killed = 0;
-	p->threadnum = 0;
-	p->thread_id = 0;
-	p->isjoined = 0;
-	p->isthread = 0;
-	proc->threadnum--;
-      }
-    }
-
-      
-
-    // No point waiting if we don't have any children.
-    if(proc->threadnum > 0)
-      sleep(proc,&ptable.lock);
-    else
-      break;
-  }
-
   if(proc->isthread)
   {
     ret_val =  (void*)proc->tf->eax;
-    wakeup1(proc->parent);
-    proc->state = TERMINATED;
+    proc->parent->threadnum--;
+    if(proc->isjoined)
+      wakeup(proc);
+    proc->state = ZOMBIE;
     sched();
   }
   else
-  {
-    release(&ptable.lock);
     exit();
-  }
 }
 
 int
