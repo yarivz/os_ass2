@@ -203,9 +203,18 @@ exit(void)
         // Found one.
         p->state = ZOMBIE;
 	if(p->isthread)
-	  p->parent->threadnum--;
+	{
+	  if(p->parent->threadnum)
+	    p->parent->threadnum--;
+	  if(!p->parent->threadnum)
+	    wakeup1(p->parent->parent);
+	}
 	else
+	{
 	  p->threadnum--;
+	  if(!p->threadnum)
+	    wakeup1(p->parent);
+	}
       }
     else if(p->parent == proc && p->isthread !=1){		// for child processes
       p->parent = initproc;
@@ -244,8 +253,7 @@ wait(void)
       }
     }
     
-    
-    if(found)
+    if(found > 0)
     {
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 	if(p->pid != found)
@@ -272,7 +280,6 @@ wait(void)
       release(&ptable.lock);
       return pid;
     }
-
 
     // No point waiting if we don't have any children.
     if(!havekids || proc->killed){
@@ -603,7 +610,7 @@ thread_exit(void * ret_val)
 {
   if(proc->isthread)
   {
-    if(proc->parent->threadnum == 1)		// when main thread already commited thread_exit
+    if(proc->parent->threadnum == 1)		// when main thread already commited thread_exit and all other threads have exited
     {
       proc->parent->threadnum--;
       exit();
@@ -613,7 +620,9 @@ thread_exit(void * ret_val)
     proc->state = ZOMBIE;
     if(proc->isjoined)
       wakeup(proc);
-    yield();
+    acquire(&ptable.lock);  //DOC: yieldlock
+    sched();
+    release(&ptable.lock);
   }
   else if(proc->threadnum == 1)		// main thread is the last thread of the process
   {
@@ -624,8 +633,9 @@ thread_exit(void * ret_val)
   {
     proc->threadnum--;
     proc->state = ZOMBIE;
-    
-    yield();
+    acquire(&ptable.lock);  //DOC: yieldlock
+    sched();
+    release(&ptable.lock);
   }
 }
 
@@ -653,14 +663,16 @@ int
 binary_semaphore_down(int binary_semaphore_ID)
 {
   acquire(&semtable.lock);
+  struct b_semaphore* sem = &semtable.binary_semaphores[binary_semaphore_ID];
   for(;;)
   {
-    struct b_semaphore* sem = &semtable.binary_semaphores[binary_semaphore_ID];
-    if(!sem->taken)
+    cprintf("waiting %d\n",sem->waiting);
+    if(sem->taken)
     {
-      if(!sem->value && !proc->sem_queue_pos)
+      cprintf("thread %d pos %d\n",proc->thread_id,proc->sem_queue_pos);
+      if(sem->value && !proc->sem_queue_pos)
       {
-	sem->value = 1;
+	sem->value = 0;
 	proc->waiting_for_semaphore = -1;
 	release(&semtable.lock);
 	return 0;
@@ -669,6 +681,7 @@ binary_semaphore_down(int binary_semaphore_ID)
       {
 	proc->waiting_for_semaphore = binary_semaphore_ID;
 	proc->sem_queue_pos = ++(sem->waiting);
+	cprintf("thread %d pos %d\n",proc->thread_id,proc->sem_queue_pos);
 	sleep(sem,&semtable.lock);
       }
     }
@@ -684,7 +697,7 @@ int
 binary_semaphore_up(int binary_semaphore_ID)
 {
   struct b_semaphore* sem = &semtable.binary_semaphores[binary_semaphore_ID];
-  if(!sem->taken)
+  if(sem->taken)
   {     
      struct proc *p;
     // Loop over process table looking for process to run.
