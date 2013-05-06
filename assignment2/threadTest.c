@@ -6,13 +6,16 @@ int lock;
 
 void *print(void)
 {
-  int j=0;
-  for(;j<10;j++)
+  int b=0;
+  for(;;)
   {
-    int i=0,b=0;
-    printf(1,"lock is %d\n",lock);
+    int i=0;
     b = binary_semaphore_down(lock);
-    printf(1,"b is %d\n",b);
+    if(b == -1)
+    {
+      printf(1,"the requested semaphore does not exist\n");
+      exit();
+    }
     for(;i<3;i++)
       printf(1,"Process %d Thread %d is running.\n",thread_getProcId(),thread_getId());
     binary_semaphore_up(lock);
@@ -28,15 +31,18 @@ threadTest(char* n)
 {
   int value = 0;
   lock = binary_semaphore_create(1);
-  printf(1,"lock is %d\n",lock);
-  int num = atoi(n);
-  for(;num>0;num--)
+  if(n)
   {
-    uint stack_size = 4096;
-    void* stack = malloc(stack_size);
-    value = thread_create((void*)print,stack,stack_size);
-    if(value == -1)
-      printf(1,"Failed to create thread number %d\n",num);
+    int num = atoi(n);
+    for(;num>0;num--)
+    {
+      int stack_size = 4096;
+      void* stack = malloc(stack_size);
+      memset(stack,0,stack_size);
+      value = thread_create((void*)print,stack,stack_size);
+      if(value == -1)
+	printf(1,"Failed to create thread number %d\n",num);
+    }
   }
 }
 
