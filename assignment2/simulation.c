@@ -60,7 +60,7 @@ Cup* wash_dirty() //DBB
   return BB_pop(&DBB);
 }
 
-void getconf(void)
+int getconf(void)
 {
   int fdin,rd;
   char buf[512];
@@ -69,13 +69,13 @@ void getconf(void)
   if((fdin = open("con.conf",O_RDONLY)) < 0)
   {
     printf(1,"Couldn't open the conf file\n");
-    return;
+    return -1;
   }
   
   if((rd = read(fdin, &buf, 512)) <= 0)
   {
     printf(1,"Couldn't read from conf file\n");
-    return;
+    return -1;
   }
   
   int i = 0;
@@ -84,6 +84,7 @@ void getconf(void)
       buf[i] = 0;
     
   for(;i<rd;i++)
+  {
     if(buf[i] == '=')
     {
       switch(buf[i-1])
@@ -105,6 +106,8 @@ void getconf(void)
 	  break;
       }
     }
+  }
+  return 0;
 }
 
 void student_func(void)
@@ -182,21 +185,35 @@ int
 main(void)
 {
   
-  
   if((fd = open("Synch_problem_log.txt",(O_WRONLY | O_CREATE))) < 0)
   {
     printf(1,"Couldn't open the log file\n");
-    return;
+    return -1;
   }
-  
+  if (getconf() == -1)
+  {
+    printf(1,"Couldn't open the conf file\n");
+    return -1;
+  }
+  int i = 0;  
   bouncer = semaphore_create(M);
   cupsem = semaphore_create(1);
   ABB = BB_create(A);
   DrinkBB = BB_create(A);
   CBB = BB_create(C);
   DBB = BB_create(C);
-  
-  
+  //TODO fork process and create thread for cupboy
+  for(;i<B;i++)
+  {
+    //TODO allocate stacks and thread_create bartenders
+    
+  }
+  for(;i<S;i++)
+  {
+    //TODO allocate stacks and thread_create students
+    
+  }
+  //TODO wait for child to finish
 }
 
 
