@@ -167,8 +167,8 @@ UPROGS=\
 	_zombie\
 	_threadTest\
 
-fs.img: mkfs README $(UPROGS)
-	./mkfs fs.img README $(UPROGS)
+fs.img: mkfs README con.conf $(UPROGS)
+	./mkfs fs.img README con.conf $(UPROGS)
 
 -include *.d
 

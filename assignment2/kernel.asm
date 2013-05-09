@@ -9800,7 +9800,6 @@ thread_exit(void * ret_val)
 8010502d:	83 f8 01             	cmp    $0x1,%eax
 80105030:	75 29                	jne    8010505b <thread_exit+0x60>
     {
-      //cprintf("entered if\n");
       proc->parent->threadnum--;
 80105032:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80105038:	8b 40 14             	mov    0x14(%eax),%eax
@@ -9813,7 +9812,6 @@ thread_exit(void * ret_val)
       exit();
 80105056:	e8 7d f4 ff ff       	call   801044d8 <exit>
     }
-    //cprintf("%d didn't enter if\n",proc->thread_id);
     proc->ret_val = ret_val;			// not main thread and not the last one
 8010505b:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80105061:	8b 55 08             	mov    0x8(%ebp),%edx
@@ -9836,8 +9834,6 @@ thread_exit(void * ret_val)
 8010509f:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 801050a5:	89 04 24             	mov    %eax,(%esp)
 801050a8:	e8 bd fa ff ff       	call   80104b6a <wakeup>
-    //release(&ptable.lock);
-    //acquire(&ptable.lock);  //DOC: yieldlock
     sched();
 801050ad:	e8 cc f8 ff ff       	call   8010497e <sched>
     release(&ptable.lock);
@@ -9873,8 +9869,6 @@ thread_exit(void * ret_val)
     proc->state = ZOMBIE;
 8010510e:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80105114:	c7 40 0c 05 00 00 00 	movl   $0x5,0xc(%eax)
-    //release(&ptable.lock);
-    //acquire(&ptable.lock);  //DOC: yieldlock
     sched();
 8010511b:	e8 5e f8 ff ff       	call   8010497e <sched>
     release(&ptable.lock);
@@ -9998,8 +9992,6 @@ binary_semaphore_down(int binary_semaphore_ID)
 801051f4:	89 90 90 00 00 00    	mov    %edx,0x90(%eax)
   for(;;)
   { 
-    //cprintf("waiting threads %d\n",sem->waiting);
-    //cprintf("down 1 - thread %d in pos %d\n",proc->thread_id,proc->sem_queue_pos);
     if(sem->taken)
 801051fa:	8b 45 f4             	mov    -0xc(%ebp),%eax
 801051fd:	8b 40 04             	mov    0x4(%eax),%eax
@@ -10023,8 +10015,6 @@ binary_semaphore_down(int binary_semaphore_ID)
 8010522a:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80105230:	c7 80 8c 00 00 00 ff 	movl   $0xffffffff,0x8c(%eax)
 80105237:	ff ff ff 
-	//if(sem->waiting>0)
-	  //sem->waiting--;
 	release(&semtable.lock);
 8010523a:	c7 04 24 40 0f 11 80 	movl   $0x80110f40,(%esp)
 80105241:	e8 23 02 00 00       	call   80105469 <release>
@@ -10053,7 +10043,6 @@ binary_semaphore_down(int binary_semaphore_ID)
 8010527e:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80105284:	8b 55 08             	mov    0x8(%ebp),%edx
 80105287:	89 90 8c 00 00 00    	mov    %edx,0x8c(%eax)
-	//cprintf("down 2 - thread %d in pos %d\n",proc->thread_id,proc->sem_queue_pos);
 	sleep(sem,&semtable.lock);
 8010528d:	c7 44 24 04 40 0f 11 	movl   $0x80110f40,0x4(%esp)
 80105294:	80 
@@ -10125,9 +10114,6 @@ binary_semaphore_up(int binary_semaphore_ID)
 8010530f:	8b 80 8c 00 00 00    	mov    0x8c(%eax),%eax
 80105315:	3b 45 08             	cmp    0x8(%ebp),%eax
 80105318:	75 15                	jne    8010532f <binary_semaphore_up+0x77>
-      {
-      	//cprintf("up - thread %d in pos %d\n",p->thread_id,p->sem_queue_pos);
-	//if(p->sem_queue_pos > 0)
 	  p->sem_queue_pos--;
 8010531a:	8b 45 f4             	mov    -0xc(%ebp),%eax
 8010531d:	8b 80 90 00 00 00    	mov    0x90(%eax),%eax
@@ -10143,9 +10129,9 @@ binary_semaphore_up(int binary_semaphore_ID)
 8010532f:	81 45 f4 98 00 00 00 	addl   $0x98,-0xc(%ebp)
 80105336:	81 7d f4 b4 3b 11 80 	cmpl   $0x80113bb4,-0xc(%ebp)
 8010533d:	72 c2                	jb     80105301 <binary_semaphore_up+0x49>
-	  //if(p->thread_id>0)
-	    //cprintf("thread_id = %d, pos = %d\n",p->thread_id,p->sem_queue_pos);
-      }
+    {
+      if(p != proc && p->waiting_for_semaphore == binary_semaphore_ID)
+	  p->sem_queue_pos--;
     }
     
     if(sem->waiting>0)

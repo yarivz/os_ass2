@@ -17,8 +17,7 @@ void *print(void)
    4:	83 ec 24             	sub    $0x24,%esp
   int b=0;
    7:	c7 45 f0 00 00 00 00 	movl   $0x0,-0x10(%ebp)
-  //int j=0;
-  for(;;/*j<10;j++*/)
+  for(;;)
   {
     int i=0;
    e:	c7 45 f4 00 00 00 00 	movl   $0x0,-0xc(%ebp)
