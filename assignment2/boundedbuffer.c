@@ -1,15 +1,20 @@
 #include "boundedbuffer.h"
 
 struct BB* 
-BB_create(int max_capacity)
+BB_create(int max_capacity,char* name)
 {
   struct BB* buf = malloc(sizeof(struct BB));
+  memset(buf,0,sizeof(struct BB));
+  buf->elements = malloc(sizeof(void*)*max_capacity);
+  memset(buf->elements,0,sizeof(void*)*max_capacity);
+  buf->name = name;
   if((buf->mutex = binary_semaphore_create(1)) != -1)
   {
     buf->BUFFER_SIZE = max_capacity;
-    if((buf->empty = create_semaphore(max_capacity))!= 0 && (buf->full = create_semaphore(0))!= 0)
+    if((buf->empty = semaphore_create(max_capacity))!= 0 && (buf->full = semaphore_create(0))!= 0)
       return buf;
   }
+  free(buf->elements);
   free(buf);
   buf = 0;
   return buf;
@@ -18,38 +23,29 @@ BB_create(int max_capacity)
 void 
 BB_put(struct BB* bb, void* element)
 {
-  void *item;
+  //printf(1,"bb name = %s, tid = %d\n",bb->name,thread_getId());
   semaphore_down(bb->empty);
   binary_semaphore_down(bb->mutex);
-  for(item = bb->elements; item < &bb->elements[bb->BUFFER_SIZE]; item++)
-  {
-    if(item)
-      continue;
-    item = element;
-  }
+  bb->elements[bb->end] = element;
+  ++bb->end;
+  bb->end = bb->end%bb->BUFFER_SIZE;
   binary_semaphore_up(bb->mutex);
-  semaphore_up(bb->empty);
+  semaphore_up(bb->full);
 }
 
 void* 
 BB_pop(struct BB* bb)
 {
   void* item;
-  int count = 0;
+  //printf(1,"bb name = %s, tid = %d\n",bb->name,thread_getId());
   semaphore_down(bb->full);
   binary_semaphore_down(bb->mutex);
-  for(item = bb->elements; item < &bb->elements[bb->BUFFER_SIZE]; item++)
-  {
-    if(!item)
-    {
-      count++;
-      continue;
-    }
-    bb->elements[count] = 0;
-    break;
-  }
+  item = bb->elements[bb->start];
+  bb->elements[bb->start] = 0;
+  ++bb->start;
+  bb->start = bb->start%bb->BUFFER_SIZE;
   binary_semaphore_up(bb->mutex);
-  semaphore_up(bb->full);
+  semaphore_up(bb->empty);
   return item;
 }
 

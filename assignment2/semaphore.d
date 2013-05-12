@@ -1,1 +1,1 @@
-semaphore.o: semaphore.c semaphore.h types.h mmu.h param.h proc.h user.h
+semaphore.o: semaphore.c semaphore.h types.h param.h user.h

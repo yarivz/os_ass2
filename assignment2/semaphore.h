@@ -1,7 +1,5 @@
 #include "types.h"
-#include "mmu.h"
 #include "param.h"
-#include "proc.h"
 #include "user.h"
 
 struct semaphore{
