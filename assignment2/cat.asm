@@ -1375,7 +1375,6 @@ semaphore_down(struct semaphore* sem )
  972:	55                   	push   %ebp
  973:	89 e5                	mov    %esp,%ebp
  975:	83 ec 18             	sub    $0x18,%esp
- //printf(1,"semaphore_down for tid = %d\n",thread_getId());
  binary_semaphore_down(sem->s2);
  978:	8b 45 08             	mov    0x8(%ebp),%eax
  97b:	8b 40 08             	mov    0x8(%eax),%eax
@@ -1392,7 +1391,6 @@ semaphore_down(struct semaphore* sem )
  999:	8d 50 ff             	lea    -0x1(%eax),%edx
  99c:	8b 45 08             	mov    0x8(%ebp),%eax
  99f:	89 10                	mov    %edx,(%eax)
- //printf(1,"DOWN - sem %s semaphore_value = %d for tid = %d\n",sem->name,sem->value,thread_getId());
  if(sem->value>0)
  9a1:	8b 45 08             	mov    0x8(%ebp),%eax
  9a4:	8b 00                	mov    (%eax),%eax
@@ -1420,7 +1418,6 @@ semaphore_up(struct semaphore* sem )
  9c8:	55                   	push   %ebp
  9c9:	89 e5                	mov    %esp,%ebp
  9cb:	83 ec 18             	sub    $0x18,%esp
-  //printf(1,"semaphore_up for tid = %d\n",thread_getId());
   binary_semaphore_down(sem->s1);
  9ce:	8b 45 08             	mov    0x8(%ebp),%eax
  9d1:	8b 40 04             	mov    0x4(%eax),%eax
@@ -1432,7 +1429,6 @@ semaphore_up(struct semaphore* sem )
  9e1:	8d 50 01             	lea    0x1(%eax),%edx
  9e4:	8b 45 08             	mov    0x8(%ebp),%eax
  9e7:	89 10                	mov    %edx,(%eax)
-  //printf(1,"UP - sem %s semaphore_value = %d for tid = %d\n",sem->name,sem->value,thread_getId());
   if(sem->value == 1)
  9e9:	8b 45 08             	mov    0x8(%ebp),%eax
  9ec:	8b 00                	mov    (%eax),%eax
@@ -1560,7 +1556,6 @@ BB_put(struct BB* bb, void* element)
  b13:	55                   	push   %ebp
  b14:	89 e5                	mov    %esp,%ebp
  b16:	83 ec 18             	sub    $0x18,%esp
- // printf(1,"put in %s, tid = %d\n",bb->name,thread_getId());
   semaphore_down(bb->empty);
  b19:	8b 45 08             	mov    0x8(%ebp),%eax
  b1c:	8b 40 08             	mov    0x8(%eax),%eax
@@ -1619,7 +1614,6 @@ BB_pop(struct BB* bb)
  b91:	89 e5                	mov    %esp,%ebp
  b93:	83 ec 28             	sub    $0x28,%esp
   void* item;
-  //printf(1,"pop from  %s, tid = %d\n",bb->name,thread_getId());
   semaphore_down(bb->full);
  b96:	8b 45 08             	mov    0x8(%ebp),%eax
  b99:	8b 40 0c             	mov    0xc(%eax),%eax

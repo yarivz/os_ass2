@@ -23,7 +23,6 @@ BB_create(int max_capacity,char* name)
 void 
 BB_put(struct BB* bb, void* element)
 {
- // printf(1,"put in %s, tid = %d\n",bb->name,thread_getId());
   semaphore_down(bb->empty);
   binary_semaphore_down(bb->mutex);
   bb->elements[bb->end] = element;
@@ -37,7 +36,6 @@ void*
 BB_pop(struct BB* bb)
 {
   void* item;
-  //printf(1,"pop from  %s, tid = %d\n",bb->name,thread_getId());
   semaphore_down(bb->full);
   binary_semaphore_down(bb->mutex);
   item = bb->elements[bb->start];

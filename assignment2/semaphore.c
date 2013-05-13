@@ -24,11 +24,9 @@ semaphore_create(int initial_semaphore_value, char* name)
 void 
 semaphore_down(struct semaphore* sem )
 {
- //printf(1,"semaphore_down for tid = %d\n",thread_getId());
  binary_semaphore_down(sem->s2);
  binary_semaphore_down(sem->s1);
  sem->value--;
- //printf(1,"DOWN - sem %s semaphore_value = %d for tid = %d\n",sem->name,sem->value,thread_getId());
  if(sem->value>0)
   binary_semaphore_up(sem->s2);
  binary_semaphore_up(sem->s1);
@@ -37,10 +35,8 @@ semaphore_down(struct semaphore* sem )
 void 
 semaphore_up(struct semaphore* sem )
 {
-  //printf(1,"semaphore_up for tid = %d\n",thread_getId());
   binary_semaphore_down(sem->s1);
   sem->value++;
-  //printf(1,"UP - sem %s semaphore_value = %d for tid = %d\n",sem->name,sem->value,thread_getId());
   if(sem->value == 1)
     binary_semaphore_up(sem->s2);
   binary_semaphore_up(sem->s1);
