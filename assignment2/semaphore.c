@@ -1,7 +1,7 @@
 #include "semaphore.h"
 
 struct semaphore* 
-semaphore_create(int initial_semaphore_value)
+semaphore_create(int initial_semaphore_value, char* name)
 {
   int min = 1;
   struct semaphore* s = malloc(sizeof(struct semaphore));
@@ -12,6 +12,7 @@ semaphore_create(int initial_semaphore_value)
     if((s->s2 = binary_semaphore_create(min)) != -1)
     {
       s->value = initial_semaphore_value;
+      s->name = name;
       return s;
     }
   }
@@ -27,7 +28,7 @@ semaphore_down(struct semaphore* sem )
  binary_semaphore_down(sem->s2);
  binary_semaphore_down(sem->s1);
  sem->value--;
- //printf(1,"semaphore_value = %d for tid = %d\n",sem->value,thread_getId());
+ //printf(1,"DOWN - sem %s semaphore_value = %d for tid = %d\n",sem->name,sem->value,thread_getId());
  if(sem->value>0)
   binary_semaphore_up(sem->s2);
  binary_semaphore_up(sem->s1);
@@ -39,7 +40,7 @@ semaphore_up(struct semaphore* sem )
   //printf(1,"semaphore_up for tid = %d\n",thread_getId());
   binary_semaphore_down(sem->s1);
   sem->value++;
-  //printf(1,"semaphore_value = %d for tid = %d\n",sem->value,thread_getId());
+  //printf(1,"UP - sem %s semaphore_value = %d for tid = %d\n",sem->name,sem->value,thread_getId());
   if(sem->value == 1)
     binary_semaphore_up(sem->s2);
   binary_semaphore_up(sem->s1);

@@ -11,7 +11,7 @@ BB_create(int max_capacity,char* name)
   if((buf->mutex = binary_semaphore_create(1)) != -1)
   {
     buf->BUFFER_SIZE = max_capacity;
-    if((buf->empty = semaphore_create(max_capacity))!= 0 && (buf->full = semaphore_create(0))!= 0)
+    if((buf->empty = semaphore_create(max_capacity, name))!= 0 && (buf->full = semaphore_create(0, name))!= 0)
       return buf;
   }
   free(buf->elements);
@@ -23,7 +23,7 @@ BB_create(int max_capacity,char* name)
 void 
 BB_put(struct BB* bb, void* element)
 {
-  //printf(1,"bb name = %s, tid = %d\n",bb->name,thread_getId());
+ // printf(1,"put in %s, tid = %d\n",bb->name,thread_getId());
   semaphore_down(bb->empty);
   binary_semaphore_down(bb->mutex);
   bb->elements[bb->end] = element;
@@ -37,7 +37,7 @@ void*
 BB_pop(struct BB* bb)
 {
   void* item;
-  //printf(1,"bb name = %s, tid = %d\n",bb->name,thread_getId());
+  //printf(1,"pop from  %s, tid = %d\n",bb->name,thread_getId());
   semaphore_down(bb->full);
   binary_semaphore_down(bb->mutex);
   item = bb->elements[bb->start];

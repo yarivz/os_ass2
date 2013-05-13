@@ -4,11 +4,12 @@
 #include "semaphore.h"
 
 struct BB{
-  int BUFFER_SIZE;
-  int mutex;		/* access control to critical section */
+  volatile int BUFFER_SIZE;
+  volatile int mutex;		/* access control to critical section */
   struct semaphore *empty;	/* counts empty buffer slots */
   struct semaphore *full;	/* counts full slots */
-  int start,end;
+  volatile int start;
+  volatile int end;
   char* name;
   void** elements;
 };

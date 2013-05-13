@@ -1,6 +1,7 @@
 // Segments in proc->gdt.
 #define NSEGS     7
 
+
 // Per-CPU state
 struct cpu {
   uchar id;                    // Local APIC ID; index into cpus[] below
@@ -78,9 +79,9 @@ struct proc {
 };
 
 struct b_semaphore {
-  int value;
-  int taken;
-  int waiting;
+  volatile int value;
+  volatile int created;
+  volatile int waiting;
 };
 
 // Process memory is laid out contiguously, low addresses first:

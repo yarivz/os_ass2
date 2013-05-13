@@ -12,8 +12,10 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+
 struct {
   struct spinlock lock;
+  struct spinlock semlocks[128];
   struct b_semaphore binary_semaphores[128];
 } semtable;
 
@@ -589,9 +591,14 @@ thread_join(int thread_id, void** ret_val)
     if(t->pid == proc->pid && t->isthread && t->thread_id == thread_id && t != proc)
     {
       if(t->isjoined)
+      {
+	release(&ptable.lock);
 	return -2;
-      if(t->state == ZOMBIE){
+      }
+      if(t->state == ZOMBIE)
+      {
 	ret_val =  &(t->ret_val);
+	release(&ptable.lock);
 	return 0;
       }      
       t->isjoined = 1;
@@ -607,6 +614,7 @@ thread_join(int thread_id, void** ret_val)
   }
 
   sleep(t,&ptable.lock);
+  release(&ptable.lock);
   return 0;
 }
 
@@ -626,7 +634,7 @@ thread_exit(void * ret_val)
     proc->parent->threadnum--;
     proc->state = ZOMBIE;
     if(proc->isjoined)
-      wakeup(proc);
+      wakeup1(proc);
     sched();
     release(&ptable.lock);
   }
@@ -654,9 +662,11 @@ binary_semaphore_create(int initial_value)
   for(;i<128;i++)
   {
     sem = &semtable.binary_semaphores[i];
-    if(sem->taken)
+    if(sem->created)
       continue;
-    sem->taken = 1;
+    
+    initlock(&semtable.semlocks[i],"b_semaphore");
+    sem->created = 1;
     sem->value = initial_value;
     release(&semtable.lock);
     return i;
@@ -668,19 +678,19 @@ binary_semaphore_create(int initial_value)
 int 
 binary_semaphore_down(int binary_semaphore_ID)
 {
-  acquire(&semtable.lock);
   struct b_semaphore* sem = &semtable.binary_semaphores[binary_semaphore_ID];
+  acquire(&semtable.semlocks[binary_semaphore_ID]);
   if(sem->waiting)
     proc->sem_queue_pos = ++(sem->waiting);
   for(;;)
   { 
-    if(sem->taken)
+    if(sem->created)
     {
       if(sem->value && !proc->sem_queue_pos)
       {
 	sem->value = 0;
 	proc->waiting_for_semaphore = -1;
-	release(&semtable.lock);
+	release(&semtable.semlocks[binary_semaphore_ID]);
 	return 0;
       }
       else
@@ -688,12 +698,13 @@ binary_semaphore_down(int binary_semaphore_ID)
 	if(!proc->sem_queue_pos)
 	  proc->sem_queue_pos = ++(sem->waiting);
 	proc->waiting_for_semaphore = binary_semaphore_ID;
-	sleep(sem,&semtable.lock);
+	//cprintf("thread %d is sleeping on semaphore %d\n",thread_getId(),binary_semaphore_ID);
+	sleep(sem,&semtable.semlocks[binary_semaphore_ID]);
       }
     }
     else
     {
-      release(&semtable.lock);
+      release(&semtable.semlocks[binary_semaphore_ID]);
       return -1;
     }
   }
@@ -702,29 +713,35 @@ binary_semaphore_down(int binary_semaphore_ID)
 int
 binary_semaphore_up(int binary_semaphore_ID)
 {
-  acquire(&semtable.lock);
+  acquire(&semtable.semlocks[binary_semaphore_ID]);
   struct b_semaphore* sem = &semtable.binary_semaphores[binary_semaphore_ID];
-  if(sem->taken)
+  if(sem->created)
   {     
     struct proc *p;
+    struct proc* first = 0;
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
       if(p != proc && p->waiting_for_semaphore == binary_semaphore_ID)
+      {
 	  p->sem_queue_pos--;
+	  if(p->sem_queue_pos == 0)
+	    first = p;
+      }
     }
     
     if(sem->waiting>0)
 	sem->waiting--;
     sem->value = 1;
-    release(&semtable.lock);
-    wakeup1(sem);
+    if(first && first->state == SLEEPING)
+      first->state = RUNNABLE;
     release(&ptable.lock);
+    release(&semtable.semlocks[binary_semaphore_ID]);
     return 0;
   }
   else
-    release(&semtable.lock);
+    release(&semtable.semlocks[binary_semaphore_ID]);
     return -1;
 }
 

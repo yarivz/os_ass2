@@ -2,6 +2,7 @@
 
 struct semaphore* bouncer;
 struct semaphore* cupsem;
+int dirtycups;
 struct BB* ABB;
 struct BB* DrinkBB;
 struct BB* CBB;
@@ -116,16 +117,18 @@ void* student_func(void)
   int i = 0;
   
   enter_bar();
-  printf(1,"student tid = %d entered bar\n",tid);
+  //printf(1,"student tid = %d entered bar\n",tid);
   for(;i < tid%5;i++)
   {
-    struct Action* get = malloc(sizeof(struct Action));
+    struct Action* get = malloc(sizeof(struct Action)); //create the get_drink action
     get->type = GET_DRINK;
     get->cup = 0;
     get->tid = tid;
-    printf(1,"student tid = %d places action\n",tid);
+    //printf(1,"student tid = %d places action\n",tid);
     place_action(get);
-    struct Cup * cup = get_drink();
+    //printf(fd,"Student %d placed action\n",tid);
+    //put action in ABB buffer
+    struct Cup * cup = get_drink();			//get cup from DrinkBB buffer
     printf(fd,"Student %d is having his %d drink, with cup %d\n",tid,i+1,cup->id);
     sleep(1);
     struct Action* put = malloc(sizeof(struct Action));
@@ -137,6 +140,7 @@ void* student_func(void)
   }
   printf(fd,"Student %d is drunk, and trying to go home\n",tid);
   leave_bar();
+  //printf(fd,"Student %d left\n",tid);
   thread_exit(0);
   return 0;
 }
@@ -161,30 +165,33 @@ void* bartender_func(void)
       return_cup(cup);
       printf(fd,"Bartender %d returned cup #%d\n",tid,cup->id);
       
-      semaphore_down(DBB->full);
+     // semaphore_down(DBB->full);
       n = DBB->full->value;
-      semaphore_up(DBB->full);
+     // semaphore_up(DBB->full);
       bufSize = DBB->BUFFER_SIZE;
       if(n/bufSize >= 0.6)
+      {
+	dirtycups = n;
+	//printf(fd,"Bartender %d waking up cupboy with %d dirty cups\n",tid,dirtycups);
 	semaphore_up(cupsem);
+      }
     }
     free(act);
   }
-  
   return 0;
 }
 
 void* cupboy_func(void)
 {
-  int i = 0, n;
+  int i, n;
   
   for(;;)
   {
-    semaphore_down(DBB->full);
-    n = DBB->full->value;
-    semaphore_up(DBB->full);
-    
-    for(;i<n;i++)
+    //semaphore_down(DBB->full);
+    n = dirtycups;
+    //semaphore_up(DBB->full);
+    //printf(fd,"Cup boy washing %d dirty cups\n",n);    
+    for(i=0;i<n;i++)
     {
       struct Cup * cup = wash_dirty();
       sleep(1);
@@ -211,13 +218,13 @@ main(void)
     printf(1,"Couldn't open the conf file\n");
     return -1;
   }
-  fd=1;
+  //fd=1;
   void * barStack[B];
   void * studStack[S];
   int studTid[S];
   int i = 0;  
-  bouncer = semaphore_create(M);
-  cupsem = semaphore_create(1);
+  bouncer = semaphore_create(M,"bouncer");
+  cupsem = semaphore_create(1,"cupboy");
   ABB = BB_create(A,"ABB");
   DrinkBB = BB_create(A,"DrinkBB");
   CBB = BB_create(C,"CBB");
@@ -231,9 +238,9 @@ main(void)
     BB_put(CBB,cups[i]);
   }
   
-  void* cupStack = malloc(1024);
-  memset(cupStack,0,1024);
-  if(thread_create(cupboy_func,cupStack,1024) < 0)
+  void* cupStack = malloc(sizeof(void*)*1024);
+  memset(cupStack,0,sizeof(void*)*1024);
+  if(thread_create(cupboy_func,cupStack,sizeof(void*)*1024) < 0)
   {
     printf(1,"Failed to create cupboy thread. Exiting...\n");
     exit();
@@ -241,20 +248,19 @@ main(void)
   
   for(i=0;i<B;i++)
   {
-    barStack[i] = malloc(1024);
-    memset(barStack[i],0,1024);
-    if(thread_create(bartender_func,barStack[i],1024) < 0)
+    barStack[i] = malloc(sizeof(void*)*1024);
+    memset(barStack[i],0,sizeof(void*)*1024);
+    if(thread_create(bartender_func,barStack[i],sizeof(void*)*1024) < 0)
     {
       printf(1,"Failed to create bartender thread #%d. Exiting...\n",i+1);
       exit();
     } 
   }
-  
   for(i=0;i<S;i++)
   {
-    studStack[i] = malloc(1024);
-    memset(studStack[i],0,1024);
-    if((studTid[i] = thread_create(student_func,studStack[i],1024)) < 0)
+    studStack[i] = malloc(sizeof(void*)*1024);
+    memset(studStack[i],0,sizeof(void*)*1024);
+    if((studTid[i] = thread_create(student_func,studStack[i],sizeof(void*)*1024)) < 0)
     {
       printf(1,"Failed to create student thread #%d. Exiting...\n",i+1);
       exit();
@@ -289,7 +295,7 @@ main(void)
   free(DrinkBB->elements);
   free(ABB);
   free(DrinkBB);
-
+  close(fd);
   exit();
   return 0;
 }
